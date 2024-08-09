@@ -1,0 +1,10 @@
+#include<stdio.h>
+int main()
+{
+    float div1 = 51;
+    float div2 = 2; 
+    float resultado;
+    resultado = div1/div2;
+    printf("%.3f",resultado);
+    return 0;
+}
