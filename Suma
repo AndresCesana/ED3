@@ -1,0 +1,10 @@
+#include <stdio.h>
+int main()
+{
+    int sum1 = 1;
+    int sum2 = 2; 
+    int sum3;
+    sum3 = sum1+sum2;
+    printf("%d",sum3);
+    return 0;
+}
