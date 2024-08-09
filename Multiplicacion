@@ -1,0 +1,10 @@
+#include<stdio.h>
+int main()
+{
+    int mult1 = 1;
+    int mult2 = 2; 
+    int resultado;
+    resultado = mult1*mult2;
+    printf("%d",resultado);
+    return 0;
+}
