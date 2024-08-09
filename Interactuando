@@ -1,0 +1,19 @@
+#include<stdio.h>
+
+int main()
+{
+    int div1, div2, resultado;
+    printf("Hola\nel primer valor es:");
+    scanf("%d", &div1);  // Pasa la dirección de div1
+    printf("\nEl segundo valor es:");
+    scanf("%d", &div2);  // Pasa la dirección de div2
+
+    if(div2 != 0) {  // Verifica para evitar división por cero
+        resultado = div1 / div2;
+        printf("El resultado es %d\n", resultado);
+    } else {
+        printf("Error: División por cero no permitida.\n");
+    }
+
+    return 0;
+}
