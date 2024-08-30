@@ -1,0 +1,40 @@
+/*------------- ENCABEZADO -------------
+ Name        : Estructuras
+ Author      : Andres Cesana
+ Version     : 1
+ Copyright   : $(copyright)
+ Description : main definition
+ @file       : estructuras.c 
+ @brief      : Ejemplo del uso de estructuras en lenguaje C.
+  ------------- ENCABEZADO -------------
+*/
+// ------------- INCLUDE -------------
+#include <stdio.h>
+#include <stdlib.h>     
+// ------------- INCLUDE -------------
+// ------------- PROGRAMA -------------
+struct estudiante
+{
+    int edad;
+    char nombre[6];
+    char sexo[1];
+};
+
+int main() {
+    struct estudiante s1;      // Declaramos dos miembros para la estructura
+    struct estudiante s2;     
+    s1.edad = 19;
+    sprintf(s1.nombre , "maria");
+    sprintf(s1.sexo , "F");
+    s2.edad = 20;
+    sprintf(s2.nombre , "juan"); 
+    sprintf(s2.sexo , "M");
+    // Imprimir la edad de s1
+    printf("La edad de s1 es: %d \n", s1.edad);
+    // Imprimir datos de s2
+    printf("Los datos de s2 son: \n Nombre: %s \n Edad: %d \n Sexo: %s \n ", s1.nombre, s1.edad, s1.sexo);
+
+    return 0;
+}
+
+// ------------- PROGRAMA -------------
