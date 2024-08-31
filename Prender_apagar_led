@@ -1,0 +1,22 @@
+/*
+ * Estudiante: Andres Cesana
+ * Carrera: Ingenieria electronica
+ * Descripcion: Prende y apaga led conectado al p0.22.
+ */
+#include "LPC17xx.h"
+void retardo(void);
+int main(vodid){
+	LPC_PINCON -> PINSEL1 &= ~(3<<12); // 0011 --> ~0011000000000000 --> 1100111111111111 deja un 0 en las posiciones 12 y 13
+	LPC_GPIO0  -> FIODIR |= (1<<22);  // 0001 --> ~0001000000000000000000000 deja un 1 en la posicion 22
+	while(1){
+		LPC_GPIO0 -> FIOCLR |= (1<<22); // Pone un 1 en 22 que manda un 0 al pin 22.
+		retardo();
+		LPC_GPIO0 -> FIOCLR |= (1<<22); // Pone un 1 en 22 que manda un 1 al pin 22.
+		retardo();
+	}
+	return 0;
+}
+void retardo(void){
+	uint32_t contador;
+	for(contador = 0; contador<6000000; contador++){};
+} 
