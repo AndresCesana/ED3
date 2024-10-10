@@ -1,0 +1,138 @@
+/*
+ Utilizando los 4 registros match del Timer0 y las salidas P0.0, P0.1, P0.2 y P0.3,
+ realizar un programa en C que permita obtener las formas de ondas adjuntas,
+ donde los pulsos en alto tienen una duración de 5mseg. Un pulsador conectado a
+ la entrada EINT3, permitirá elegir entre las dos secuencias mediante una rutina de
+ servicio a la interrupción. La prioridad de la interrupción del Timer tiene que ser
+ mayor que la del pulsador. Estas formas de ondas son muy útiles para controlar un
+ motor paso a paso.
+ P0.0 salida
+ P0.1 salida
+ P0.2 salida
+ p0.3 salida
+ p2.13 EINT3
+ */
+
+#include "LPC17xx.h"
+#include "LPC17xx_pinsel.h"
+#include "LPC17xx_exti.h"
+#include "LPC17xx_gpio.h"
+#include "LPC17xx_timer.h"
+#include "LPC17xx_clkpwr.h"
+#include <cr_section_macros.h>
+uint8_t secuencia = 1;
+// Configuracion
+void Config_Puertos(void){
+	//Configuro puertos para salida GPIO
+	for(uint8_t i = 0; i<4;i++){
+		PINSEL_CFG_Type pinsel_cfg;
+		pinsel_cfg.Funcnum = 0;  //P0.0 salida P0.1 salida P0.2 salida p0.3 salida
+		pinsel_cfg.Pinnum = i;
+		pinsel_cfg.Portnum = 0;
+		PINSEL_ConfigPin(&pinsel_cfg);
+			if(i==0){
+				GPIO_SetDir(0,i,1);
+				GPIO_SetValue(0,i);
+			}else{
+				GPIO_SetDir(0,i,1);
+				GPIO_ClearValue(0,i);
+			}
+		}
+	//Configuro puertos para entrada de interrupcion de EINT3
+	PINSEL_CFG_Type pinsel_cfg;
+	pinsel_cfg.Funcnum = 1;  // p2.13 EINT3
+	pinsel_cfg.Pinnum = 13;
+	pinsel_cfg.Portnum = 2;
+	pinsel_cfg.Pinmode = PINSEL_PINMODE_PULLUP;
+	PINSEL_ConfigPin(&pinsel_cfg);
+}
+void Config_INTE3(void){
+	EXTI_Init(); //Limpia los valores de la estructura
+	EXTI_InitTypeDef EXTI_ConfigStruct;
+	EXTI_ConfigStruct.EXTI_Line = EXTI_EINT3;
+	EXTI_ConfigStruct.EXTI_Mode = EXTI_MODE_LEVEL_SENSITIVE;
+	EXTI_ConfigStruct.EXTI_polarity = EXTI_POLARITY_LOW_ACTIVE_OR_FALLING_EDGE;
+	EXTI_Config(&EXTI_ConfigStruct);
+	NVIC_EnableIRQ(EINT3_IRQn); // Habilito la interrupcion
+}
+void Config_timer0(void){
+	CLKPWR_SetPCLKDiv (CLKPWR_PCLKSEL_TIMER0, CLKPWR_PCLKSEL_CCLK_DIV_1); // Selecciono como fuente el clock sin divisiones
+	TIM_TIMERCFG_Type timer_cfg;
+	timer_cfg.PrescaleOption = TIM_PRESCALE_TICKVAL; // Para valores de tick
+	timer_cfg.PrescaleValue = 500000; // tquiero = tiempoclck*(ps+1)
+	TIM_Init(LPC_TIM0, TIM_TIMER_MODE , &timer_cfg);
+	// Config match
+	for (uint8_t i =0 ; i<4; i++){
+		TIM_MATCHCFG_Type match_cfg;
+		match_cfg.MatchChannel = i;
+		match_cfg.IntOnMatch = ENABLE;
+		match_cfg.StopOnMatch = DISABLE;
+		match_cfg.MatchValue = i+1;// tinterr = tquiero* (Mv+1)
+		match_cfg.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
+		if (i==3){
+			match_cfg.ResetOnMatch = ENABLE;
+		}else{
+			match_cfg.ResetOnMatch = DISABLE;
+		}
+		TIM_ConfigMatch(LPC_TIM0, &match_cfg);
+	}
+	TIM_Cmd(LPC_TIM0, ENABLE);
+	NVIC_EnableIRQ(TIMER0_IRQn);
+}
+int main(void) {
+	Config_timer0();
+	Config_INTE3();
+	Config_Puertos();
+    while(1) {
+    }
+    return 0 ;
+}
+void EINT2_IRQHandler(void){
+	secuencia = (secuencia == 1) ? 0 : 1;
+	EXTI_ClearEXTIFlag(EXTI_EINT3);
+
+}
+void TIMER0_IRQHandler(void){
+	if(secuencia==1){
+		if (TIM_GetIntStatus(LPC_TIM0, TIM_MR0_INT)){
+			GPIO_ClearValue(0,0xF);
+			GPIO_SetValue(0,1);
+			TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
+		}else if(TIM_GetIntStatus(LPC_TIM0, TIM_MR1_INT)){
+			GPIO_ClearValue(0,0xF);
+			GPIO_SetValue(0,2);
+			TIM_ClearIntPending(LPC_TIM0, TIM_MR1_INT);
+		}else if(TIM_GetIntStatus(LPC_TIM0, TIM_MR2_INT)){
+			GPIO_ClearValue(0,0xF);
+			GPIO_SetValue(0,3);
+			TIM_ClearIntPending(LPC_TIM0, TIM_MR2_INT);
+		}else{
+			GPIO_ClearValue(0,0xF);
+			GPIO_SetValue(0,0);
+			TIM_ClearIntPending(LPC_TIM0, TIM_MR3_INT);
+		}
+	}else{
+		if (TIM_GetIntStatus(LPC_TIM0, TIM_MR0_INT)){
+			GPIO_ClearValue(0,(3<<2));
+			GPIO_SetValue(0,1);
+			TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
+		}else if(TIM_GetIntStatus(LPC_TIM0, TIM_MR1_INT)){
+			GPIO_ClearValue(0,(1<<4)|(1<<0));
+			GPIO_SetValue(0,2);
+			TIM_ClearIntPending(LPC_TIM0, TIM_MR1_INT);
+		}else if(TIM_GetIntStatus(LPC_TIM0, TIM_MR2_INT)){
+			GPIO_ClearValue(0,0x3);
+			GPIO_SetValue(0,3);
+			TIM_ClearIntPending(LPC_TIM0, TIM_MR2_INT);
+		}else{
+			GPIO_ClearValue(0,(3<<1));
+			GPIO_SetValue(0,0);
+			TIM_ClearIntPending(LPC_TIM0, TIM_MR3_INT);
+		}
+	}
+}
+
+
+
+
+
