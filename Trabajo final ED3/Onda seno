@@ -1,0 +1,146 @@
+/*
+===============================================================================
+ Name        : EjeDAC_Segura_Atencio.c
+ Author      : Fernando Segura
+ Version     :
+ Copyright   : $(copyright)
+ Description : main definition
+===============================================================================
+*/
+
+#ifdef __USE_CMSIS
+#include "LPC17xx.h"
+#endif
+
+#include <cr_section_macros.h>
+#include "/Users/Fer/Documents/ED3_2021/otro_driver_2/CMSISV2p00_LPC17xx/Drivers/inc/lpc17xx_dac.h"
+#include "/Users/Fer/Documents/ED3_2021/otro_driver_2/CMSISV2p00_LPC17xx/Drivers/inc/lpc17xx_timer.h"
+#include "/Users/Fer/Documents/ED3_2021/otro_driver_2/CMSISV2p00_LPC17xx/Drivers/inc/lpc17xx_pinsel.h"
+#include "/Users/Fer/Documents/ED3_2021/otro_driver_2/CMSISV2p00_LPC17xx/Drivers/inc/lpc17xx_exti.h"
+
+void confPin();
+void confDAC();
+void confEXT();
+void confTimer();
+uint32_t seno[17] = {0, 50, 100, 148, 196, 241, 284, 324, 361, 395, 425, 451, 472, 489, 501, 509, 511};
+uint8_t div=1;
+int main(void) {
+
+	confPin();
+	confDAC();
+	confEXT();
+	confTimer();
+
+    while(1) {
+
+    }
+    return 0 ;
+}
+
+void confPin (){
+	PINSEL_CFG_Type PinCfg;
+	// AOUT:
+	PinCfg.Portnum = 0;
+	PinCfg.Pinnum = 26;
+	PinCfg.Funcnum = 2;
+	PinCfg.OpenDrain = 0;
+	PinCfg.Pinmode = 0;
+	PINSEL_ConfigPin(&PinCfg);
+
+	//Boton
+	PinCfg.Portnum = 2;
+	PinCfg.Pinnum = 11;
+	PinCfg.Funcnum = 1;
+	PINSEL_ConfigPin(&PinCfg);
+
+}
+
+void confDAC (){
+	1
+}
+
+void confEXT (){
+	EXTI_Init();
+	EXTI_InitTypeDef EXT1;
+	EXT1.EXTI_Line = EXTI_EINT1;
+	EXT1.EXTI_Mode = EXTI_MODE_EDGE_SENSITIVE;
+	EXT1.EXTI_polarity = EXTI_POLARITY_HIGH_ACTIVE_OR_RISING_EDGE;
+	EXTI_Config(&EXT1);
+	EXTI_ClearEXTIFlag(EXTI_EINT1);
+	NVIC_EnableIRQ(EINT1_IRQn);
+}
+
+void confTimer(){
+
+	TIM_TIMERCFG_Type PR;
+	PR.PrescaleOption = TIM_PRESCALE_TICKVAL;
+	PR.PrescaleValue = 1;
+	TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &PR);
+	TIM_MATCHCFG_Type MatchCfg;
+	MatchCfg.MatchChannel=0;
+	MatchCfg.IntOnMatch=ENABLE;
+	MatchCfg.MatchValue=919;
+	MatchCfg.ResetOnMatch=ENABLE;
+	MatchCfg.StopOnMatch=DISABLE;
+	TIM_ConfigMatch(LPC_TIM0, &MatchCfg);
+	NVIC_EnableIRQ(TIMER0_IRQn);
+	TIM_Cmd(LPC_TIM0, ENABLE);
+
+}
+void EINT1_IRQHandler(){
+	EXTI_ClearEXTIFlag(EXTI_EINT1);
+	div=div*2;
+	if(div>8){
+		div=1;
+	}else{}
+	return;
+}
+void TIMER0_IRQHandler(){
+	static int sentido=0,ubicacion=0,signo=0;
+	static uint32_t valor=0;
+	TIM_ClearIntCapturePending(LPC_TIM0, TIM_MR0_INT);
+	if(!signo){	//caso parte "positiva"
+		if(sentido==0){
+			valor=(512+seno[ubicacion])/div;
+			DAC_UpdateValue(LPC_DAC, valor);
+			ubicacion++;
+			if(ubicacion>=17){
+				sentido=!sentido;
+				ubicacion=16;
+			}else{}
+
+		}else{   //para cuando el sentido no es ascendente
+			valor=(512+seno[ubicacion])/div;
+			ubicacion--;
+			DAC_UpdateValue(LPC_DAC, valor);
+			if(ubicacion<0){
+				signo=!signo;
+				sentido=!sentido;
+				ubicacion=1;
+			}else{}
+		}
+
+
+	}else{    //caso de parte "negativa"
+		if(sentido==0){
+			valor=(512-seno[ubicacion])/div;
+						DAC_UpdateValue(LPC_DAC, valor);
+						ubicacion++;
+						if(ubicacion>=17){
+							sentido=!sentido;
+							ubicacion=16;
+						}else{}
+		}else{   //para cuando el sentido no es ascendente
+				valor=(512-seno[ubicacion])/div;
+				ubicacion--;
+				DAC_UpdateValue(LPC_DAC, valor);
+				if(ubicacion<0){
+					signo=!signo;
+					sentido=!sentido;
+					ubicacion=0;
+				}else{}
+		}
+
+	}
+	return;
+}
