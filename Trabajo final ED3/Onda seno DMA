@@ -1,0 +1,72 @@
+
+#include "lpc17xx.h"
+#include "lpc17xx_pinsel.h"
+#include "lpc17xx_dac.h"
+#include "lpc17xx_adc.h"
+#include "lpc17xx_timer.h"
+#include "lpc17xx_exti.h"
+#include "math.h"
+#include "lpc17xx_clkpwr.h"
+#include "lpc17xx_gpdma.h"
+
+
+// Definición de tabla senoidal de 16 puntos, centrada en 512 para ajustarse a la salida del DAC
+uint16_t Seno[63] = {512, 562, 612, 660, 708, 753, 796, 836, 873, 907, 963, 984, 1001, 1013, 1021, 1023, 1021, 1013, 1001, 984, 963, 907, 873, 836, 796, 753, 708, 660, 612, 562, 512, 461, 411, 363, 315, 270, 227, 187, 150, 116, 60, 39, 22, 10, 2, 0,2, 10, 22, 39, 60, 116, 150, 187, 227, 270, 315, 363, 411, 461, 512};
+
+
+void ConfigPuerto(void){
+
+	PINSEL_CFG_Type pinsel_cfg;
+
+	//DAC P 0.26 F2
+	pinsel_cfg. Funcnum = 2;
+	pinsel_cfg. Portnum = 0;
+	pinsel_cfg. Pinnum = 26;
+	pinsel_cfg.OpenDrain = 0;
+	pinsel_cfg.Pinmode = 0;
+	PINSEL_ConfigPin(&pinsel_cfg);
+	}
+
+
+void ConfigDAC(void){
+	DAC_CONVERTER_CFG_Type dac_Conf;
+	dac_Conf. CNT_ENA = ENABLE;
+	dac_Conf. DBLBUF_ENA = DISABLE;
+	dac_Conf. DMA_ENA = ENABLE;
+	DAC_ConfigDAConverterControl(LPC_DAC, &dac_Conf);
+	DAC_Init(LPC_DAC);  // Corregido: usar LPC_DAC en lugar de LPC_ADC
+	DAC_SetBias(LPC_DAC,DAC_MAX_CURRENT_700uA);
+	DAC_UpdateValue(LPC_DAC, 0);  // Valor inicial del DAC
+	DAC_SetDMATimeOut(LPC_DAC,1000000/61);
+	CLKPWR_SetPCLKDiv(CLKPWR_PCLKSEL_DAC,CLKPWR_PCLKSEL_CCLK_DIV_1);
+	GPDMA_LLI_Type DMA_LLI_Struct;
+	DMA_LLI_Struct.SrcAddr = (uint32_t)Seno;
+	DMA_LLI_Struct.DstAddr = (uint32_t)&(LPC_DAC->DACR);
+	DMA_LLI_Struct.NextLLI = (uint32_t)&DMA_LLI_Struct;
+	DMA_LLI_Struct.Control = 60
+			|(1<<18)
+			|(1<<21)
+			|(1<<26);
+	GPDMA_Init();
+	GPDMA_Channel_CFG_Type dma_cfg;
+	dma_cfg.ChannelNum = 0;
+	dma_cfg.TransferSize = 60;
+	dma_cfg.TransferType = GPDMA_TRANSFERTYPE_M2P;
+	dma_cfg.SrcMemAddr = (uint32_t)Seno;
+	dma_cfg.DstConn = GPDMA_CONN_DAC;
+	dma_cfg.DMALLI = (uint32_t)&DMA_LLI_Struct;
+	GPDMA_Setup(&dma_cfg);
+	GPDMA_ChannelCmd(0,ENABLE);
+}
+
+
+int main(void){
+	for(int i =0 ; i < 63 ; i++){
+		Seno[i] = 62*Seno[i];
+	}
+	ConfigPuerto();
+	ConfigDAC();
+	while(1){}
+	return 0;
+}
+
