@@ -1,0 +1,95 @@
+
+#include "LPC17xx.h"
+#include "lpc17xx_adc.h"
+#include "lpc17xx_dac.h"
+#include "lpc17xx_pinsel.h"
+#include "lpc17xx_timer.h"
+#include "lpc17xx_gpio.h"
+#include "lpc17xx_clkpwr.h"
+#include <cr_section_macros.h>
+
+// Configuración del ADC
+void Config_adc() {
+    // Configuración del pin P0.23 como entrada del ADC (AD0.0)
+    PINSEL_CFG_Type pinsel_cfg;
+    pinsel_cfg.Funcnum = 1;                        // Función 1: AD0.0
+    pinsel_cfg.Portnum = 0;                        // Puerto 0
+    pinsel_cfg.Pinnum = 23;                        // Pin 23
+    PINSEL_ConfigPin(&pinsel_cfg);                 // Aplicar configuración de PIN
+
+    // Inicialización del ADC
+    ADC_Init(LPC_ADC, 2000);                       // Inicializa el ADC con un reloj de 2kHz
+    ADC_ChannelCmd(LPC_ADC, 0, ENABLE);            // Habilita el canal AD0.0
+    ADC_IntConfig(LPC_ADC, ADC_ADINTEN0, ENABLE);  // Habilita la interrupción para el canal AD0.0
+    ADC_BurstCmd(LPC_ADC, DISABLE);                // Desactiva el modo de conversión en ráfaga (se usará conversión manual)
+
+    // Habilitación de la interrupción del ADC
+    NVIC_EnableIRQ(ADC_IRQn);                      // Activa la interrupción del ADC
+}
+
+// Configuración del temporizador
+void Config_timer() {
+    // Configuración del temporizador para generar una interrupción cada 1 ms el clock es de 25 MHz
+    TIM_TIMERCFG_Type timer_cfg;
+    timer_cfg.PrescaleOption = TIM_PRESCALE_USVAL; // Configura el prescaler en microsegundos
+    timer_cfg.PrescaleValue = 25000;                // Ajusta el prescaler para contar en microsegundos
+
+    // Configuración del Match: la coincidencia genera una interrupción cada 1 ms
+    TIM_MATCHCFG_Type match_cfg;
+    match_cfg.MatchChannel = 0;                      // Usa el canal de coincidencia 0
+    match_cfg.IntOnMatch = ENABLE;                   // Habilita la interrupción al coincidir
+    match_cfg.ResetOnMatch = ENABLE;                 // Resetea el contador cuando coincide
+    match_cfg.StopOnMatch = DISABLE;                 // No detiene el temporizador
+    match_cfg.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;  // No realiza ninguna salida externa
+    match_cfg.MatchValue = 0;                     // El valor de coincidencia es 1000 (1 ms)
+
+    // Inicialización del temporizador con los parámetros configurados
+    TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &timer_cfg);
+    TIM_ConfigMatch(LPC_TIM0, &match_cfg);
+
+    // Inicia el temporizador
+    TIM_Cmd(LPC_TIM0, ENABLE);
+
+    // Habilitación de la interrupción del temporizador
+    NVIC_EnableIRQ(TIMER0_IRQn);
+}
+void Config_dac(void) {
+	PINSEL_CFG_Type pinsel_cfg;
+	pinsel_cfg.Funcnum = 2;                        // Función 1: AD0.0
+	pinsel_cfg.Portnum = 0;                        // Puerto 0
+	pinsel_cfg.Pinnum = 26;                        // Pin 23
+	pinsel_cfg.Pinmode = PINSEL_PINMODE_PULLDOWN;   // Modo de pin: Pull-down
+	PINSEL_ConfigPin(&pinsel_cfg);
+    DAC_Init(LPC_DAC);  // Corregido: usar LPC_DAC en lugar de LPC_ADC
+    DAC_UpdateValue(LPC_DAC, 0);  // Valor inicial del DAC
+    CLKPWR_SetPCLKDiv(CLKPWR_PCLKSEL_DAC,CLKPWR_PCLKSEL_CCLK_DIV_1);
+}
+int main(void) {
+    Config_adc();    // Configura el ADC
+    Config_timer();  // Configura el temporizador
+    Config_dac();
+    while(1) {
+        // Bucle principal vacío, todo se maneja con interrupciones
+    }
+
+    return 0;
+}
+
+// Interrupción del temporizador
+void TIMER0_IRQHandler() {
+    // Inicia la conversión ADC manualmente
+    ADC_StartCmd(LPC_ADC, ADC_START_NOW);
+
+    // Limpia la bandera de interrupción del temporizador
+    TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
+}
+
+// Interrupción del ADC
+void ADC_IRQHandler() {
+	uint16_t adc_value;
+    // Lee el valor convertido del canal 0 (AD0.0)
+    adc_value = ADC_ChannelGetData(LPC_ADC, 0);
+    adc_value = adc_value>>2;
+    DAC_UpdateValue(LPC_DAC, adc_value);
+    // Se asume que la referencia de voltaje es 3.3V y el rango ADC es de 12 bits (4095 valores)
+}
