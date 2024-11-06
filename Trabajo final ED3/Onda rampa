@@ -1,0 +1,65 @@
+
+#include "LPC17xx.h"
+#include "lpc17xx_adc.h"
+#include "lpc17xx_dac.h"
+#include "lpc17xx_pinsel.h"
+#include "lpc17xx_timer.h"
+#include "lpc17xx_gpio.h"
+#include "lpc17xx_clkpwr.h"
+#include <cr_section_macros.h>
+uint16_t valor=0;
+
+void Config_timer() {
+    // Configuración del temporizador para generar una interrupción cada 1 ms el clock es de 25 MHz
+    TIM_TIMERCFG_Type timer_cfg;
+    timer_cfg.PrescaleOption = TIM_PRESCALE_TICKVAL; // Configura el prescaler en microsegundos
+    timer_cfg.PrescaleValue = 1;                // Ajusta el prescaler para contar en microsegundos
+    TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &timer_cfg);
+    // Configuración del Match: la coincidencia genera una interrupción cada 1 ms
+    TIM_MATCHCFG_Type match_cfg;
+    match_cfg.MatchChannel = 0;                      // Usa el canal de coincidencia 0
+    match_cfg.IntOnMatch = ENABLE;                   // Habilita la interrupción al coincidir
+    match_cfg.ResetOnMatch = ENABLE;                 // Resetea el contador cuando coincide
+    match_cfg.StopOnMatch = DISABLE;                 // No detiene el temporizador
+    match_cfg.MatchValue = 919;                     // El valor de coincidencia es 1000 (1 ms)
+
+    // Inicialización del temporizador con los parámetros configurados
+
+    TIM_ConfigMatch(LPC_TIM0, &match_cfg);
+
+    // Inicia el temporizador
+    TIM_Cmd(LPC_TIM0, ENABLE);
+
+    // Habilitación de la interrupción del temporizador
+    NVIC_EnableIRQ(TIMER0_IRQn);
+}
+void Config_dac(void) {
+	PINSEL_CFG_Type pinsel_cfg;
+	pinsel_cfg.Funcnum = 2;
+	pinsel_cfg.Portnum = 0;
+	pinsel_cfg.Pinnum = 26;
+	pinsel_cfg.OpenDrain = 0;
+	pinsel_cfg.Pinmode = 0;
+	PINSEL_ConfigPin(&pinsel_cfg);
+	DAC_SetBias(LPC_DAC,DAC_MAX_CURRENT_350uA);
+}
+int main(void) {
+    Config_timer();  // Configura el temporizador
+    Config_dac();
+    while(1) {
+        // Bucle principal vacío, todo se maneja con interrupciones
+    }
+
+    return 0;
+}
+
+// Interrupción del temporizador
+void TIMER0_IRQHandler() {
+	valor = valor + 5;
+	if (valor>1000){
+		valor = 0;
+	}
+    DAC_UpdateValue(LPC_DAC, valor);
+    TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
+    // Se asume que la referencia de voltaje es 3.3V y el rango ADC es de 12 bits (4095 valores)
+}
