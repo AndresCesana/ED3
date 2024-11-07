@@ -1,0 +1,108 @@
+
+#include "lpc17xx.h"
+#include "lpc17xx_pinsel.h"
+#include "lpc17xx_dac.h"
+#include "lpc17xx_adc.h"
+#include "lpc17xx_timer.h"
+#include "lpc17xx_exti.h"
+#include "math.h"
+#include "lpc17xx_clkpwr.h"
+#include "lpc17xx_gpdma.h"
+#include "lpc17xx_gpio.h"
+
+
+// Definición de tabla senoidal de 16 puntos, centrada en 512 para ajustarse a la salida del DAC
+uint16_t Seno[63] = {512, 562, 612, 660, 708, 753, 796, 836, 873, 907, 963, 984, 1001, 1013, 1021, 1023, 1021, 1013, 1001, 984, 963, 907, 873, 836, 796, 753, 708, 660, 612, 562, 512, 461, 411, 363, 315, 270, 227, 187, 150, 116, 60, 39, 22, 10, 2, 0,2, 10, 22, 39, 60, 116, 150, 187, 227, 270, 315, 363, 411, 461, 512};
+
+
+void ConfigPuerto(void){
+	PINSEL_CFG_Type pinsel_cfg;
+	//DAC P 0.26 F2
+	pinsel_cfg. Funcnum = 2;
+	pinsel_cfg. Portnum = 0;
+	pinsel_cfg. Pinnum = 26;
+	pinsel_cfg.OpenDrain = 0;
+	pinsel_cfg.Pinmode = 0;
+	PINSEL_ConfigPin(&pinsel_cfg);
+	PINSEL_CFG_Type pinselCfg;
+	pinselCfg.Portnum = 0;
+	pinselCfg.Pinnum = 22;
+	pinselCfg.Funcnum = 0;
+	pinselCfg.Pinmode = PINSEL_PINMODE_NORMAL;
+
+	PINSEL_ConfigPin(&pinselCfg);
+
+	GPIO_SetDir(0, (1<<22), 1);
+}
+void Configtimer3(){
+
+	TIM_TIMERCFG_Type timer_cfg;
+	timer_cfg.PrescaleOption = TIM_PRESCALE_TICKVAL; // Para valores de tick
+	timer_cfg.PrescaleValue = 1; // tquiero = tiempoclck*(ps+1) 4.10^-3
+	TIM_Init(LPC_TIM3, TIM_TIMER_MODE , &timer_cfg);
+	TIM_MATCHCFG_Type match_cfg;
+	match_cfg.MatchChannel = 3;
+	match_cfg.IntOnMatch = ENABLE;
+	match_cfg.StopOnMatch = DISABLE;
+	match_cfg.MatchValue = 3000000000;// tinterr = tquiero* (Mv+1)
+	match_cfg.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
+	match_cfg.ResetOnMatch = ENABLE;
+	TIM_ConfigMatch(LPC_TIM3, &match_cfg);
+	TIM_Cmd(LPC_TIM3, ENABLE);
+	NVIC_EnableIRQ(TIMER3_IRQn);
+	CLKPWR_SetPCLKDiv (CLKPWR_PCLKSEL_TIMER3, CLKPWR_PCLKSEL_CCLK_DIV_1); // Selecciono como fuente el clock sin divisiones
+}
+
+void ConfigDAC(uint16_t frecuencia_DMA){
+	DAC_CONVERTER_CFG_Type dac_Conf;
+	DAC_ConverterConfigStruct.CNT_ENA = SET;
+	DAC_ConverterConfigStruct.DMA_ENA = SET;
+	DAC_Init(LPC_DAC);  // Corregido: usar LPC_DAC en lugar de LPC_ADC
+	DAC_SetDMATimeOut(LPC_DAC,1000000/frecuencia_DMA);
+	DAC_ConfigDAConverterControl(LPC_DAC, &dac_Conf);
+	DAC_SetBias(LPC_DAC,DAC_MAX_CURRENT_350uA);
+	DAC_UpdateValue(LPC_DAC, 0);  // Valor inicial del DAC
+	
+	
+	GPDMA_LLI_Type DMA_LLI_Struct;
+	DMA_LLI_Struct.SrcAddr = (uint32_t)Seno;
+	DMA_LLI_Struct.DstAddr = (uint32_t)&(LPC_DAC->DACR);
+	DMA_LLI_Struct.NextLLI = (uint32_t)&DMA_LLI_Struct;
+	DMA_LLI_Struct.Control = 60
+			|(1<<18)
+			|(1<<21)
+			|(1<<26);
+	GPDMA_Channel_CFG_Type dma_cfg;
+	dma_cfg.ChannelNum = 0;
+	dma_cfg.TransferSize = 60;
+	dma_cfg.TransferType = GPDMA_TRANSFERTYPE_M2P;
+	dma_cfg.SrcMemAddr = (uint32_t)Seno;
+	dma_cfg.DstConn = GPDMA_CONN_DAC;
+	//dma_cfg.DMALLI = (uint32_t)&DMA_LLI_Struct;
+	GPDMA_Setup(&dma_cfg);
+	CLKPWR_SetPCLKDiv(CLKPWR_PCLKSEL_DAC,CLKPWR_PCLKSEL_CCLK_DIV_1);
+	NVIC_EnableIRQ(DMA_IRQn);
+	GPDMA_ChannelCmd(0,ENABLE);
+}
+
+
+int main(void){
+	for(int i =0 ; i < 63 ; i++){
+		Seno[i] = 61*Seno[i];
+	}
+	ConfigPuerto();
+	ConfigDAC(10);
+	//Configtimer3();
+
+	while(1){}
+	return 0;
+}
+
+void TIMER3_IRQHandler(void){
+	(GPIO_ReadValue(0)& (1<<22)) ? GPIO_ClearValue(0, (1<<22)) : GPIO_SetValue(0, (1<<22));
+	TIM_ClearIntPending(LPC_TIM3, TIM_MR3_INT);
+	}
+void DMA_IRQHandler(void){
+	GPDMA_ClearIntPending (GPDMA_STATCLR_INTTC, 0);
+	GPDMA_ClearIntPending (GPDMA_STATCLR_INTERR, 0);
+	}
