@@ -1,0 +1,63 @@
+#include "lpc17xx.h"
+#include "lpc17xx_pinsel.h"
+#include "lpc17xx_timer.h"
+#include "lpc17xx_clkpwr.h"
+#include "lpc17xx_gpio.h"
+void Configuracion_timer1(void){
+	//Configuracion del Timer
+	TIM_TIMERCFG_Type timer_cfg;
+	timer_cfg.PrescaleOption = TIM_PRESCALE_USVAL; // Para valores de microsegundo
+	timer_cfg.PrescaleValue = 1000; // Va a contar 0.001 segundo
+	TIM_Init(LPC_TIM1, TIM_TIMER_MODE , &timer_cfg);
+
+	//Configuracion de la interrupcion del timer por match 0
+	TIM_MATCHCFG_Type match_cfg0 ,match_cfg1 ;
+	match_cfg0.MatchChannel = 0;
+	match_cfg0.IntOnMatch = ENABLE;
+	match_cfg0.StopOnMatch = DISABLE;
+	match_cfg0.MatchValue = 100;// Va a contar 30 segundos
+	match_cfg0.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
+	match_cfg0.ResetOnMatch = ENABLE;
+	TIM_ConfigMatch(LPC_TIM1, &match_cfg0);
+	//Configuracion de la interrupcion del timer por match 1
+	match_cfg1.MatchChannel = 1;
+	match_cfg1.IntOnMatch = ENABLE;
+	match_cfg1.StopOnMatch = DISABLE;
+	match_cfg1.MatchValue = 50;// Va a contar 30 segundos
+	match_cfg1.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
+	match_cfg1.ResetOnMatch = DISABLE;
+	TIM_ConfigMatch(LPC_TIM1, &match_cfg1);
+	// Inicio el timer
+	TIM_Cmd(LPC_TIM1, ENABLE);
+	// Habilito la interrupcion del timer
+	NVIC_EnableIRQ(TIMER1_IRQn);
+	// Elijo el timer que quiero usar
+	CLKPWR_SetPCLKDiv (CLKPWR_PCLKSEL_TIMER1, CLKPWR_PCLKSEL_CCLK_DIV_1); // Selecciono como fuente el clock sin divisiones
+}
+void Configuracion_GPIO(void){
+	// Configuro el led p0.22
+	PINSEL_CFG_Type pinselCfg;
+	pinselCfg.Portnum = 0;
+	pinselCfg.Pinnum = 0;
+	pinselCfg.Funcnum = 0;
+	pinselCfg.Pinmode = PINSEL_PINMODE_NORMAL;
+	PINSEL_ConfigPin(&pinselCfg);
+	GPIO_SetDir(0, (1<<0), 1);
+}
+void TIMER1_IRQHandler(void){
+	if(TIM_GetIntStatus(LPC_TIM1, TIM_MR0_INT)){
+		GPIO_SetValue(0, (1<<0));
+		TIM_ClearIntPending(LPC_TIM1, TIM_MR0_INT);
+	}else{
+		GPIO_ClearValue(0, (1<<0));
+		TIM_ClearIntPending(LPC_TIM1, TIM_MR1_INT);
+	}
+}
+int main(void){
+	Configuracion_timer1();
+	Configuracion_GPIO();
+	while(1){
+
+	}
+	return 0;
+}
