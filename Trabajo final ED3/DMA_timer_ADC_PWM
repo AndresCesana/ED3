@@ -143,6 +143,8 @@ void ConfigADC(void){ // 200Khz, MODO BURST CANAL 0 INTERRUPCION HABILITADA
 void TIMER3_IRQHandler(void){
     TIM_ClearIntPending(LPC_TIM3, TIM_MR3_INT);
     Configuracion_timer1(100*adc_value/4095);
+    uint32_t aux = (PCLK_DAC_IN_MHZ*1000000)/((100+900*adc_value/4095)*NUM_SINE_SAMPLE);
+    DAC_SetDMATimeOut(LPC_DAC,aux);
 	}
 int ConfigDMA(void)
 {
