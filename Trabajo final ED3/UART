@@ -1,0 +1,47 @@
+#include "lpc17xx.h"
+#include "lpc17xx_pinsel.h"
+#include "math.h"
+#include "lpc17xx_gpio.h"
+#include "lpc17xx_uart.h"
+
+uint16_t data;
+
+void config_UART(void){
+     // Configura los pines P0.2 (TXD) y P0.3 (RXD)
+	LPC_PINCON->PINSEL0 &= ~(0xF << 4); // Limpia los bits de los pines P0.2 y P0.3
+	LPC_PINCON->PINSEL0 |= (1 << 4) | (1 << 6); // Configura P0.2 como TXD0 y P0.3 como RXD0
+
+	UART_CFG_Type UARTConfigStruct;
+
+	// Configura los parámetros de la UART
+	UARTConfigStruct.Baud_rate = 9600;
+	UARTConfigStruct.Parity = UART_PARITY_NONE;
+	UARTConfigStruct.Databits = UART_DATABIT_8;
+	UARTConfigStruct.Stopbits = UART_STOPBIT_1;
+
+	// Inicializa el periférico UART0 con los parámetros especificados
+	UART_Init((LPC_UART_TypeDef *)LPC_UART0, &UARTConfigStruct);
+
+	// Habilita la transmisión en UART
+	UART_TxCmd((LPC_UART_TypeDef *)LPC_UART0, ENABLE);
+
+	// Habilitar interrupciones de UART
+	UART_IntConfig((LPC_UART_TypeDef *)LPC_UART0, UART_INTCFG_RBR, ENABLE); // Habilita interrupciones de recepción
+	NVIC_EnableIRQ(UART0_IRQn); // Habilita la interrupción del UART0 en el NVIC
+}
+
+void UART0_IRQHandler(void) {
+    // Comprueba si la interrupción es por recepción de datos
+    if (UART_GetIntId((LPC_UART_TypeDef *)LPC_UART0) & UART_IIR_INTID_RDA) {
+        data = UART_ReceiveByte((LPC_UART_TypeDef *)LPC_UART0); // Lee el dato recibido
+        UART_SendByte((LPC_UART_TypeDef *)LPC_UART0, data);
+    }
+}
+
+int main(void) {
+	config_UART();
+    while(1) {
+        // Aquí puedes agregar código para procesar los datos recibidos en 'data'
+    }
+    return 0;
+}
