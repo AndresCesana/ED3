@@ -14,7 +14,7 @@ try
         fwrite(sObject, x); % Enviar el carácter seleccionado     
         pause(0.05); % Pequeña pausa para asegurar la recepción
         
-        disp('Ingresa un número entre 0 y 100 para solicitar una muestra de temperatura');
+        disp('Ingresa un número entre 0 y 100 para solicitar el setpoint de temperatura');
         prompt = 'Código: ';
         y = str2num(['uint8(',input(prompt, 's'),')']); % Leer como cadena para asegurar compatibilidad
         disp(['La muestra seleccionada fue la numero: ', y]);
