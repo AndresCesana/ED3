@@ -1,0 +1,42 @@
+clc; clear all; close all;
+
+% Configuración del puerto serial
+delete(instrfind);
+sObject = serial('COM3', 'BaudRate', 9600, 'TimeOut', 2); % Crear objeto serial
+sObject.Terminator = '&'; % Carácter para terminar la comunicación
+fopen(sObject); % Abrir el puerto
+
+try
+        disp('Ingresa un número entre 0 y 100 para solicitar dutyCycle por defecto');
+        prompt = 'Código: ';
+        x = str2num(['uint8(',input(prompt, 's'),')']); % Leer como cadena para asegurar compatibilidad
+        disp(['La muestra seleccionada fue la numero: ', x]);
+        fwrite(sObject, x); % Enviar el carácter seleccionado     
+        pause(0.05); % Pequeña pausa para asegurar la recepción
+        
+        disp('Ingresa un número entre 0 y 100 para solicitar una muestra de temperatura');
+        prompt = 'Código: ';
+        y = str2num(['uint8(',input(prompt, 's'),')']); % Leer como cadena para asegurar compatibilidad
+        disp(['La muestra seleccionada fue la numero: ', y]);
+        fwrite(sObject, y); % Enviar el carácter seleccionado     
+        pause(0.05); % Pequeña pausa para asegurar la recepción
+        % Enviar el valor al microcontrolador
+        while true
+            % Leer las respuestas de temperatura y promedio desde el microcontrolador
+            if sObject.BytesAvailable > 0               
+                lectura = fscanf(sObject);
+                disp('El promedio de las últimas 10 mediciones de temperatura fue:');
+                temp_promedio = double(lectura(1,2));
+                disp(temp_promedio);
+            end
+       
+        end
+        
+catch ME
+    disp('Error en la comunicación o el programa se detuvo manualmente.');
+end
+
+% Cerrar el puerto al finalizar
+fclose(sObject);
+delete(sObject);
+clear sObject;
